@@ -35,7 +35,10 @@ jobs:
           tool: zola@0.19.2
 
       - name: Build site
-        run: zola build
+        run: |
+          # Build with correct base URL for GitHub Pages
+          REPO_NAME="${GITHUB_REPOSITORY#*/}"
+          zola build --base-url "https://${{ github.repository_owner }}.github.io/${REPO_NAME}/"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

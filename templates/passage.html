@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% import "macros.html" as macros %}
+
+{% block title %}{{ page.title }} - {{ config.title }}{% endblock %}
+{% block description %}{{ page.description | default(value=config.description) }}{% endblock %}
+
+{% block content %}
+{% set passages_data = load_data(path="data/passages.json") %}
+{% set audio_data = load_data(path="data/audio.json") %}
+{% set passage_index = page.extra.passage_index | default(value=0) %}
+
+{# Find the passage by iterating (Tera doesn't support array indexing) #}
+{% set passage = false %}
+{% for p in passages_data.passages %}
+    {% if loop.index0 == passage_index %}
+        {% set_global passage = p %}
+    {% endif %}
+{% endfor %}
+
+<!-- Breadcrumb -->
+<nav class="mb-4 text-sm">
+    <a href="{{ get_url(path='passages') }}" class="text-blue-600 hover:underline">Passages</a>
+    <span class="text-gray-400 mx-2">/</span>
+    <span class="text-gray-600">{{ page.title }}</span>
+</nav>
+
+<!-- Passage Header -->
+<div class="mb-6">
+    <h2 class="text-2xl font-bold text-gray-900">{{ page.title }}</h2>
+    {% if page.description %}
+    <p class="text-gray-600 mt-1">{{ page.description }}</p>
+    {% endif %}
+</div>
+
+{% if passage %}
+<!-- Audio Player -->
+{% if audio_data[page.title] %}
+<div class="mb-6 bg-white rounded-lg shadow-sm border p-4">
+    <audio controls class="w-full max-w-md" preload="metadata">
+        <source src="{{ get_url(path=audio_data[page.title]) }}" type="audio/mpeg">
+        Your browser does not support audio playback.
+    </audio>
+</div>
+{% endif %}
+
+<!-- Sentences -->
+<div class="space-y-4">
+    {% set sentence_num = 1 %}
+    {% for s in passage.sentences %}
+        {% set has_words = s.word_tracks and s.word_tracks | first and s.word_tracks | first | get(key="words") | length > 0 %}
+        {% if has_words %}
+            {{ macros::sentence(s=s, index=sentence_num) }}
+            {% set_global sentence_num = sentence_num + 1 %}
+        {% endif %}
+    {% endfor %}
+</div>
+
+{% else %}
+<div class="text-center py-12 text-gray-500">
+    <p>Passage data not found.</p>
+    <p class="text-sm mt-1">Make sure passages.json contains this passage.</p>
+</div>
+{% endif %}
+
+<!-- Navigation -->
+<div class="mt-8 pt-4 border-t flex justify-between">
+    <a href="{{ get_url(path='passages') }}" class="text-blue-600 hover:underline">
+        &larr; Back to Passages
+    </a>
+</div>
+{% endblock %}

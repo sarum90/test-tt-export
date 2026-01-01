@@ -1,0 +1,21 @@
+# Zola build output
+public/
+
+# Generated passage pages (created by generate_passages.py)
+content/passages/*.md
+!content/passages/_index.md
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc

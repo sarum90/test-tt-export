@@ -1,0 +1,250 @@
+{
+  "passages": [
+    {
+      "name": "The Elephant Story",
+      "description": "A traditional narrative about an elephant",
+      "sentences": [
+        {
+          "grammatical": true,
+          "infelicitous": false,
+          "word_tracks": [
+            {
+              "name": "IPA",
+              "words": [
+                "ɔ^{3}",
+                "li^{3}",
+                "dʒa^{31}"
+              ]
+            },
+            {
+              "name": "Gloss",
+              "words": [
+                "3SG",
+                "see.PFV",
+                "elephant"
+              ]
+            }
+          ],
+          "sentence_tracks": [
+            {
+              "name": "English",
+              "sentence": "He saw an elephant."
+            }
+          ]
+        },
+        {
+          "grammatical": true,
+          "infelicitous": false,
+          "word_tracks": [
+            {
+              "name": "IPA",
+              "words": [
+                "dʒa^{31}",
+                "nə^{2}",
+                "ko^{4}",
+                "ba^{1}"
+              ]
+            },
+            {
+              "name": "Gloss",
+              "words": [
+                "elephant",
+                "DEF",
+                "big",
+                "very"
+              ]
+            }
+          ],
+          "sentence_tracks": [
+            {
+              "name": "English",
+              "sentence": "The elephant was very big."
+            }
+          ]
+        },
+        {
+          "grammatical": true,
+          "infelicitous": false,
+          "word_tracks": [
+            {
+              "name": "IPA",
+              "words": [
+                "ɔ^{3}",
+                "fara^{21}",
+                "kʷe^{4}"
+              ]
+            },
+            {
+              "name": "Gloss",
+              "words": [
+                "3SG",
+                "run.PFV",
+                "away"
+              ]
+            }
+          ],
+          "sentence_tracks": [
+            {
+              "name": "English",
+              "sentence": "He ran away."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "At the Market",
+      "description": "A conversation at the local market",
+      "sentences": [
+        {
+          "grammatical": true,
+          "infelicitous": false,
+          "word_tracks": [
+            {
+              "name": "IPA",
+              "words": [
+                "e^{4}",
+                "ji^{3}",
+                "sukulu^{4.4.4}",
+                "li^{3}"
+              ]
+            },
+            {
+              "name": "Gloss",
+              "words": [
+                "1SG",
+                "FUT",
+                "cassava",
+                "eat"
+              ]
+            }
+          ],
+          "sentence_tracks": [
+            {
+              "name": "English",
+              "sentence": "I will eat cassava."
+            }
+          ]
+        },
+        {
+          "grammatical": true,
+          "infelicitous": false,
+          "word_tracks": [
+            {
+              "name": "IPA",
+              "words": [
+                "i^{2}",
+                "wa^{3}",
+                "sukulu^{4.4.4}",
+                "ti^{1}"
+              ]
+            },
+            {
+              "name": "Gloss",
+              "words": [
+                "2SG",
+                "want",
+                "cassava",
+                "Q"
+              ]
+            }
+          ],
+          "sentence_tracks": [
+            {
+              "name": "English",
+              "sentence": "Do you want cassava?"
+            }
+          ]
+        },
+        {
+          "grammatical": false,
+          "infelicitous": false,
+          "word_tracks": [
+            {
+              "name": "IPA",
+              "words": [
+                "sukulu^{4.4.4}",
+                "e^{4}",
+                "li^{3}"
+              ]
+            },
+            {
+              "name": "Gloss",
+              "words": [
+                "cassava",
+                "1SG",
+                "eat"
+              ]
+            }
+          ],
+          "sentence_tracks": [
+            {
+              "name": "English",
+              "sentence": "Cassava I eat. (ungrammatical word order)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Morning Greeting",
+      "description": "Common morning greetings",
+      "sentences": [
+        {
+          "grammatical": true,
+          "infelicitous": false,
+          "word_tracks": [
+            {
+              "name": "IPA",
+              "words": [
+                "suba^{2.1}",
+                "ɲa^{3}"
+              ]
+            },
+            {
+              "name": "Gloss",
+              "words": [
+                "morning",
+                "good"
+              ]
+            }
+          ],
+          "sentence_tracks": [
+            {
+              "name": "English",
+              "sentence": "Good morning."
+            }
+          ]
+        },
+        {
+          "grammatical": true,
+          "infelicitous": false,
+          "word_tracks": [
+            {
+              "name": "IPA",
+              "words": [
+                "i^{2}",
+                "tʃe^{4}",
+                "bɔ^{3}"
+              ]
+            },
+            {
+              "name": "Gloss",
+              "words": [
+                "2SG",
+                "sleep.PFV",
+                "well"
+              ]
+            }
+          ],
+          "sentence_tracks": [
+            {
+              "name": "English",
+              "sentence": "Did you sleep well?"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

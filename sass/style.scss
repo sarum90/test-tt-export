@@ -1,0 +1,85 @@
+// Custom styles for linguistic passages site
+// Most styling handled by Tailwind, this is for specialized needs
+
+// Ensure IPA characters render correctly
+.ipa-text {
+    font-family: 'Charis SIL', 'Doulos SIL', 'Gentium Plus', 'DejaVu Sans',
+                 'Lucida Sans Unicode', 'Arial Unicode MS', system-ui, sans-serif;
+    font-size: 1.1em;
+}
+
+// Superscript styling for tone marks
+.ipa-text sup {
+    font-size: 0.7em;
+    vertical-align: super;
+    line-height: 0;
+}
+
+// Interlinear gloss grid
+.interlinear-grid {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.25rem;
+    align-items: flex-start;
+}
+
+.word-column {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.125rem;
+}
+
+// Grammaticality markers
+.ungrammatical::before {
+    content: '*';
+    color: #dc2626;
+    font-weight: bold;
+    margin-right: 0.25rem;
+}
+
+.infelicitous::before {
+    content: '#';
+    color: #d97706;
+    font-weight: bold;
+    margin-right: 0.25rem;
+}
+
+// Search highlight
+.search-highlight {
+    background-color: #fef08a;
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.125rem;
+}
+
+// Tab underline animation
+.tab-active {
+    position: relative;
+
+    &::after {
+        content: '';
+        position: absolute;
+        bottom: -2px;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background-color: currentColor;
+    }
+}
+
+// Audio player styling
+audio {
+    width: 100%;
+    max-width: 400px;
+}
+
+// Mobile responsiveness for interlinear
+@media (max-width: 640px) {
+    .interlinear-grid {
+        gap: 0.5rem 0.75rem;
+    }
+
+    .ipa-text {
+        font-size: 1em;
+    }
+}

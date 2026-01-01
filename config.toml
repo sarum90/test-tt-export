@@ -1,0 +1,13 @@
+base_url = "/"
+title = "Language Passages"
+description = "Interactive linguistic text corpus with interlinear glosses"
+compile_sass = true
+minify_html = false
+
+[markdown]
+highlight_code = false
+
+[extra]
+# Customize these for your project
+language_name = "Your Language"
+language_code = "xxx"

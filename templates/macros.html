@@ -1,0 +1,47 @@
+{# Macros for rendering interlinear glossed text #}
+
+{# Render a single sentence with interlinear glosses #}
+{% macro sentence(s, index) %}
+{% set has_words = s.word_tracks and s.word_tracks | first and s.word_tracks | first | get(key="words") | length > 0 %}
+{% if has_words %}
+<div class="sentence-block bg-white rounded-lg p-4 shadow-sm
+    {%- if not s.grammatical %} ungrammatical{% endif %}
+    {%- if s.infelicitous %} infelicitous{% endif %}">
+
+    {# Sentence number #}
+    <div class="text-xs text-gray-400 mb-2">({{ index }})</div>
+
+    {# Interlinear gloss grid #}
+    {% set word_count = s.word_tracks | first | get(key="words") | length %}
+    <div class="interlinear-grid mb-3">
+        {% for word_idx in range(end=word_count) %}
+        <div class="word-column">
+            {% for track in s.word_tracks %}
+                {# Find the word at this index by iterating #}
+                {% for word in track.words %}
+                    {% if loop.index0 == word_idx %}
+                        {% set display_word = word | default(value="") %}
+                        {% if track.name == "IPA" or track.name == "Phonetic" %}
+                        <span class="ipa-text ipa-convert font-medium">{{ display_word }}</span>
+                        {% else %}
+                        <span class="text-sm text-gray-600 ipa-convert">{{ display_word }}</span>
+                        {% endif %}
+                    {% endif %}
+                {% endfor %}
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+
+    {# Sentence-level translations #}
+    {% if s.sentence_tracks %}
+        {% for track in s.sentence_tracks %}
+        <div class="text-gray-700 italic border-l-2 border-gray-200 pl-3 mt-2">
+            {{ track.sentence }}
+        </div>
+        {% endfor %}
+    {% endif %}
+
+</div>
+{% endif %}
+{% endmacro sentence %}

@@ -3,7 +3,7 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
-  workflow_dispatch:  # Allow manual trigger
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -21,24 +21,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-
-      - name: Generate passage pages
-        run: python scripts/generate_passages.py --clean
-
-      - name: Setup Zola
-        uses: taiki-e/install-action@v2
-        with:
-          tool: zola@0.19.2
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v4
 
       - name: Build site
         run: |
-          # Build with correct base URL for GitHub Pages
           REPO_NAME="${GITHUB_REPOSITORY#*/}"
-          zola build --base-url "https://${{ github.repository_owner }}.github.io/${REPO_NAME}/"
+          BASE_URL="https://${{ github.repository_owner }}.github.io/${REPO_NAME}/"
+          uv sync
+          uv run python build.py --base-url "$BASE_URL"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

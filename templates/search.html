@@ -1,68 +1,66 @@
 {% extends "base.html" %}
 
-{% block title %}Search - {{ config.title }}{% endblock %}
+{% block title %}Search - {{ site_title }}{% endblock %}
 
 {% block content %}
-{% set passages_data = load_data(path="data/passages.json") %}
-
 <div class="mb-6">
-    <h2 class="text-xl font-bold text-gray-900">Search</h2>
+    <h2 class="font-bold">Search</h2>
 </div>
 
-<div x-data="searchApp">
+<div x-data="searchApp()">
     <!-- Search Input -->
     <div class="mb-6">
-        <div class="relative max-w-xl">
+        <div class="search-wrapper">
             <input
                 type="text"
                 x-model="searchQuery"
                 @input.debounce.300ms="performSearch()"
                 placeholder="Search words, glosses, or translations..."
-                class="w-full px-4 py-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
-            <svg class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                class="search-input">
+            <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
             </svg>
         </div>
-        <p class="text-sm text-gray-500 mt-2">
-            Search across {{ passages_data.passages | length }} passages
+        <p class="text-sm text-muted mt-2">
+            Search across {{ passages | length }} passages
         </p>
     </div>
 
     <!-- No Query State -->
-    <div x-show="!searchQuery" class="text-center py-8 text-gray-500">
+    <div x-show="!searchQuery" class="text-center py-8 text-muted">
         <p>Enter a search term to find matching sentences.</p>
     </div>
 
     <!-- Search Results -->
-    <div x-show="searchQuery" id="search-results"></div>
+    <div x-show="searchQuery" x-html="resultsHtml"></div>
 </div>
 
-<!-- Embedded passage data for search -->
-<script id="passages-json" type="application/json">
-{{ passages_data | json_encode(pretty=false) | safe }}
-</script>
-
 <!-- Passage URL mapping -->
-{% set passages_section = get_section(path="passages/_index.md") %}
 <script id="passage-urls" type="application/json">
 {
-    {% for page in passages_section.pages %}
-    "{{ page.extra.passage_index | default(value=0) }}": "{{ page.permalink }}"{% if not loop.last %},{% endif %}
+    {% for p in passage_list %}
+    "{{ p.index }}": "{{ base_url }}passages/{{ p.slug }}/"{% if not loop.last %},{% endif %}
     {% endfor %}
 }
+</script>
+
+<!-- Passages data for search -->
+<script id="passages-json" type="application/json">
+{{ passages_json | safe }}
 </script>
 {% endblock %}
 
 {% block scripts %}
 <script>
-document.addEventListener('alpine:init', () => {
-    Alpine.data('searchApp', () => ({
+function searchApp() {
+    return {
         searchQuery: '',
         passages: [],
         passageUrls: {},
+        resultsHtml: '',
+        searchId: 0,
 
         init() {
-            // Load passages data
             const jsonEl = document.getElementById('passages-json');
             if (jsonEl) {
                 try {
@@ -72,8 +70,6 @@ document.addEventListener('alpine:init', () => {
                     console.error('Failed to parse passages JSON:', e);
                 }
             }
-
-            // Load passage URLs
             const urlsEl = document.getElementById('passage-urls');
             if (urlsEl) {
                 try {
@@ -84,152 +80,119 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        performSearch() {
+        async performSearch() {
             const query = this.searchQuery.trim().toLowerCase();
-            const resultsEl = document.getElementById('search-results');
+            const currentSearchId = ++this.searchId;
 
-            if (!query || !resultsEl) {
-                if (resultsEl) resultsEl.innerHTML = '';
+            if (!query) {
+                this.resultsHtml = '';
                 return;
             }
 
             const results = [];
+            for (let passageIndex = 0; passageIndex < this.passages.length; passageIndex++) {
+                // Check for cancellation
+                if (currentSearchId !== this.searchId) return;
 
-            this.passages.forEach((passage, passageIndex) => {
+                const passage = this.passages[passageIndex];
                 const matchingSentences = [];
-
-                (passage.sentences || []).forEach((sentence, sentenceIndex) => {
-                    if (!sentence.word_tracks ||
-                        !sentence.word_tracks[0] ||
-                        !sentence.word_tracks[0].words ||
-                        sentence.word_tracks[0].words.length === 0) {
-                        return;
-                    }
-
+                let sentenceNum = 0;
+                (passage.sentences || []).forEach((sentence) => {
+                    if (!sentence.word_tracks?.[0]?.words?.length) return;
+                    sentenceNum++;  // Only count valid sentences (matches passage.html filtering)
                     let matches = false;
-
                     sentence.word_tracks.forEach(track => {
                         (track.words || []).forEach(word => {
-                            if (word && word.toLowerCase().includes(query)) {
-                                matches = true;
-                            }
+                            if (word && word.toLowerCase().includes(query)) matches = true;
                         });
                     });
-
                     (sentence.sentence_tracks || []).forEach(track => {
-                        if (track.sentence && track.sentence.toLowerCase().includes(query)) {
-                            matches = true;
-                        }
+                        if (track.sentence?.toLowerCase().includes(query)) matches = true;
                     });
-
-                    if (matches) {
-                        matchingSentences.push({ sentence, sentenceIndex });
-                    }
+                    if (matches) matchingSentences.push({ sentence, sentenceNum });
                 });
-
                 if (matchingSentences.length > 0) {
                     results.push({ passage, passageIndex, matchingSentences });
                 }
-            });
 
-            resultsEl.innerHTML = this.renderSearchResults(results, query);
+                // Cooperative yield after each passage
+                await new Promise(r => setTimeout(r, 0));
+            }
 
-            // Convert superscripts
-            resultsEl.querySelectorAll('.ipa-convert').forEach(el => {
-                if (el.innerHTML.includes('^{')) {
-                    el.innerHTML = el.innerHTML.replace(/\^\{([^}]*)\}/g, '<sup>$1</sup>');
-                }
-            });
+            // Final cancellation check before rendering
+            if (currentSearchId !== this.searchId) return;
+
+            this.resultsHtml = this.renderResults(results, query);
         },
 
-        renderSearchResults(results, query) {
+        renderResults(results, query) {
             if (results.length === 0) {
-                return `<div class="text-center py-8 text-gray-500">
+                return `<div class="text-center py-8 text-muted">
                     <p>No results found for "${this.escapeHtml(query)}"</p>
                 </div>`;
             }
 
             return results.map(result => {
-                const passageUrl = this.passageUrls[result.passageIndex] || '#';
+                const url = this.passageUrls[result.passageIndex] || '#';
                 return `
-                <div class="bg-white rounded-lg shadow-sm border overflow-hidden mb-6">
-                    <div class="px-4 py-3 bg-gray-50 border-b flex items-center justify-between">
+                <div class="result-card">
+                    <div class="result-header">
                         <div>
-                            <h3 class="font-medium text-gray-900">${this.escapeHtml(result.passage.name)}</h3>
-                            <p class="text-xs text-gray-500">${result.matchingSentences.length} matching sentence(s)</p>
+                            <h3>${this.escapeHtml(result.passage.name)}</h3>
+                            <p class="text-xs text-muted">${result.matchingSentences.length} matching sentence(s)</p>
                         </div>
-                        <a href="${passageUrl}" class="text-sm text-blue-600 hover:underline">
-                            View full passage &rarr;
-                        </a>
+                        <a href="${url}" class="text-sm">View full passage &rarr;</a>
                     </div>
-                    <div class="p-4 space-y-4">
-                        ${result.matchingSentences.slice(0, 5).map(match =>
-                            this.renderSentence(match.sentence, query)
-                        ).join('')}
-                        ${result.matchingSentences.length > 5 ?
-                            `<p class="text-sm text-gray-500">... and ${result.matchingSentences.length - 5} more matches</p>` : ''}
+                    <div class="result-body space-y-4">
+                        ${result.matchingSentences.slice(0, 5).map(s => this.renderSentence(s.sentence, s.sentenceNum, url, query)).join('')}
+                        ${result.matchingSentences.length > 5 ? `<p class="text-sm text-muted">... and ${result.matchingSentences.length - 5} more</p>` : ''}
                     </div>
-                </div>
-            `}).join('');
+                </div>`;
+            }).join('');
         },
 
-        renderSentence(sentence, query) {
+        renderSentence(sentence, sentenceNum, passageUrl, query) {
             const wordCount = sentence.word_tracks[0].words.length;
-            const trackNames = sentence.word_tracks.map(t => t.name);
+            let cls = '';
+            if (!sentence.grammatical) cls += ' ungrammatical';
+            if (sentence.infelicitous) cls += ' infelicitous';
 
-            let grammaticalClass = '';
-            if (!sentence.grammatical) grammaticalClass += ' ungrammatical';
-            if (sentence.infelicitous) grammaticalClass += ' infelicitous';
-
-            let html = `<div class="bg-gray-50 rounded p-3${grammaticalClass}">`;
-
-            html += '<div class="interlinear-grid mb-2">';
+            const sentenceUrl = `${passageUrl}#sentence-${sentenceNum}`;
+            let html = `<div class="result-sentence${cls}">`;
+            html += `<div class="sentence-number"><a href="${sentenceUrl}">(${sentenceNum})</a></div>`;
+            html += `<div class="interlinear-grid">`;
             for (let i = 0; i < wordCount; i++) {
                 html += '<div class="word-column">';
-                for (const trackName of trackNames) {
-                    const track = sentence.word_tracks.find(t => t.name === trackName);
-                    const word = track && track.words[i] ? track.words[i] : '';
-                    const isIPA = trackName === 'IPA' || trackName === 'Phonetic';
-                    const highlighted = this.highlightMatch(word, query);
-                    html += `<span class="${isIPA ? 'ipa-text ipa-convert font-medium' : 'text-sm text-gray-600 ipa-convert'}">${highlighted}</span>`;
+                for (const track of sentence.word_tracks) {
+                    const word = track.words[i] || '';
+                    const isIPA = track.name === 'IPA' || track.name === 'Phonetic';
+                    const highlighted = this.highlight(word, query);
+                    html += `<span class="${isIPA ? 'ipa-text' : 'gloss-text'}">${highlighted}</span>`;
                 }
                 html += '</div>';
             }
             html += '</div>';
-
             (sentence.sentence_tracks || []).forEach(track => {
-                const highlighted = this.highlightMatch(track.sentence, query);
-                html += `<div class="text-gray-700 italic text-sm border-l-2 border-gray-200 pl-3">${highlighted}</div>`;
+                html += `<div class="translation">${this.highlight(track.sentence, query)}</div>`;
             });
-
             html += '</div>';
             return html;
         },
 
-        highlightMatch(text, query) {
-            if (!text || !query) return this.escapeHtml(text || '');
-
-            const escaped = this.escapeHtml(text);
-            const lowerText = escaped.toLowerCase();
-            const lowerQuery = query.toLowerCase();
-            const index = lowerText.indexOf(lowerQuery);
-
-            if (index === -1) return escaped;
-
-            const before = escaped.slice(0, index);
-            const match = escaped.slice(index, index + query.length);
-            const after = escaped.slice(index + query.length);
-
-            return `${before}<mark class="search-highlight">${match}</mark>${after}`;
+        highlight(text, query) {
+            if (!text) return '';
+            const escaped = this.escapeHtml(text).replace(/\^\{([^}]*)\}/g, '<sup>$1</sup>');
+            const idx = escaped.toLowerCase().indexOf(query.toLowerCase());
+            if (idx === -1) return escaped;
+            return escaped.slice(0, idx) + '<mark class="search-highlight">' + escaped.slice(idx, idx + query.length) + '</mark>' + escaped.slice(idx + query.length);
         },
 
         escapeHtml(text) {
-            if (!text) return '';
             const div = document.createElement('div');
-            div.textContent = text;
+            div.textContent = text || '';
             return div.innerHTML;
         }
-    }));
-});
+    };
+}
 </script>
 {% endblock %}

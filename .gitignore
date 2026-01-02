@@ -1,9 +1,8 @@
-# Zola build output
+# Build output
 public/
 
-# Generated passage pages (created by generate_passages.py)
-content/passages/*.md
-!content/passages/_index.md
+# Audio cache (ffmpeg conversions)
+data/audio_cache/
 
 # OS files
 .DS_Store
@@ -19,3 +18,4 @@ Thumbs.db
 # Python
 __pycache__/
 *.pyc
+.venv/

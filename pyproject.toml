@@ -1,0 +1,15 @@
+[project]
+name = "linguistic-passages"
+version = "0.1.0"
+description = "Static site generator for linguistic text corpora with interlinear glosses"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "jinja2>=3.1",
+    "markdown>=3.5",
+    "python-frontmatter>=1.0",
+    "watchdog>=4.0",
+]
+
+[dependency-groups]
+dev = []

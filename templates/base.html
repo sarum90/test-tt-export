@@ -3,83 +3,410 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}{{ config.title }}{% endblock %}</title>
-    <meta name="description" content="{% block description %}{{ config.description }}{% endblock %}">
-
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        'ipa': ['Charis SIL', 'Doulos SIL', 'Gentium Plus', 'DejaVu Sans', 'Lucida Sans Unicode', 'Arial Unicode MS', 'sans-serif'],
-                    }
-                }
-            }
-        }
-    </script>
+    <title>{% block title %}{{ site_title }}{% endblock %}</title>
+    <meta name="description" content="{% block description %}{{ site_description }}{% endblock %}">
 
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
-    <!-- Custom styles -->
-    <link rel="stylesheet" href="{{ get_url(path='style.css') }}">
+    <style>
+        /* Reset & Base */
+        *, *::before, *::after { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #f9fafb;
+            color: #111827;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            line-height: 1.5;
+        }
+        a { color: #2563eb; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        /* Layout */
+        .container {
+            max-width: 72rem;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        /* Header */
+        header {
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        header .container { padding-top: 1rem; padding-bottom: 1rem; }
+        header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        header h1 a { color: inherit; }
+        header h1 a:hover { color: #2563eb; text-decoration: none; }
+        header p {
+            margin: 0.25rem 0 0;
+            font-size: 0.875rem;
+            color: #4b5563;
+        }
+
+        /* Navigation */
+        nav {
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .nav-links {
+            display: flex;
+            gap: 0.25rem;
+            overflow-x: auto;
+        }
+        .nav-link {
+            padding: 0.75rem 1rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #4b5563;
+            border-bottom: 2px solid transparent;
+            white-space: nowrap;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .nav-link:hover {
+            color: #111827;
+            text-decoration: none;
+        }
+        .nav-link.active {
+            color: #2563eb;
+            border-bottom-color: #2563eb;
+        }
+
+        /* Main Content */
+        main {
+            flex: 1;
+            padding: 1.5rem 0;
+        }
+
+        /* IPA text styling */
+        .ipa-text {
+            font-family: 'Charis SIL', 'Doulos SIL', 'Gentium Plus', 'DejaVu Sans', 'Lucida Sans Unicode', 'Arial Unicode MS', system-ui, sans-serif;
+            font-size: 1.1em;
+            font-weight: 500;
+        }
+        .ipa-text sup, sup {
+            font-size: 0.7em;
+            vertical-align: super;
+            line-height: 0;
+        }
+
+        /* Interlinear gloss grid */
+        .interlinear-grid {
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 0.75rem 1.25rem;
+            align-items: flex-start;
+            margin-bottom: 0.75rem;
+        }
+        .word-column {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.125rem;
+        }
+        .gloss-text {
+            font-size: 0.875rem;
+            color: #4b5563;
+        }
+
+        /* Cards */
+        .card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .card-padding { padding: 1rem; }
+
+        /* Sentence blocks */
+        .sentence-block {
+            background: white;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            transition: box-shadow 0.3s;
+        }
+        .sentence-block:target {
+            box-shadow: 0 0 0 2px #3b82f6;
+        }
+        .sentence-number {
+            font-size: 0.75rem;
+            color: #9ca3af;
+            margin-bottom: 0.5rem;
+        }
+        .sentence-number a {
+            color: inherit;
+            text-decoration: none;
+        }
+        .sentence-number a:hover {
+            color: #6b7280;
+        }
+
+        /* Grammaticality markers */
+        .ungrammatical::before {
+            content: '*';
+            color: #dc2626;
+            font-weight: bold;
+            margin-right: 0.25rem;
+        }
+        .infelicitous::before {
+            content: '#';
+            color: #d97706;
+            font-weight: bold;
+            margin-right: 0.25rem;
+        }
+
+        /* Translation line */
+        .translation {
+            color: #374151;
+            font-style: italic;
+            border-left: 2px solid #e5e7eb;
+            padding-left: 0.75rem;
+            margin-top: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        /* Search */
+        .search-input {
+            width: 100%;
+            max-width: 36rem;
+            padding: 0.75rem 1rem 0.75rem 2.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            outline: none;
+        }
+        .search-input:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+        }
+        .search-wrapper {
+            position: relative;
+            max-width: 36rem;
+        }
+        .search-icon {
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 1.25rem;
+            height: 1.25rem;
+            color: #9ca3af;
+        }
+        .search-highlight {
+            background-color: #fef08a;
+            border-radius: 0.125rem;
+        }
+
+        /* Typography helpers */
+        .text-sm { font-size: 0.875rem; }
+        .text-xs { font-size: 0.75rem; }
+        .text-muted { color: #6b7280; }
+        .text-light { color: #9ca3af; }
+        .font-medium { font-weight: 500; }
+        .font-bold { font-weight: 700; }
+        .text-center { text-align: center; }
+        .italic { font-style: italic; }
+
+        /* Spacing helpers */
+        .mb-1 { margin-bottom: 0.25rem; }
+        .mb-2 { margin-bottom: 0.5rem; }
+        .mb-4 { margin-bottom: 1rem; }
+        .mb-6 { margin-bottom: 1.5rem; }
+        .mt-2 { margin-top: 0.5rem; }
+        .mt-4 { margin-top: 1rem; }
+        .mt-8 { margin-top: 2rem; }
+        .py-8 { padding-top: 2rem; padding-bottom: 2rem; }
+        .space-y-3 > * + * { margin-top: 0.75rem; }
+        .space-y-4 > * + * { margin-top: 1rem; }
+
+        /* Flexbox helpers */
+        .flex { display: flex; }
+        .flex-between { display: flex; justify-content: space-between; align-items: center; }
+        .items-center { align-items: center; }
+        .gap-2 { gap: 0.5rem; }
+        .gap-3 { gap: 0.75rem; }
+
+        /* Passage cards */
+        .passage-card {
+            display: block;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            transition: box-shadow 0.15s, border-color 0.15s;
+            color: inherit;
+        }
+        .passage-card:hover {
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-color: #bfdbfe;
+            text-decoration: none;
+        }
+        .passage-card h3 {
+            margin: 0;
+            font-weight: 500;
+            color: #111827;
+        }
+        .passage-card .meta {
+            font-size: 0.75rem;
+            color: #9ca3af;
+        }
+        .icon-audio {
+            color: #3b82f6;
+            width: 1rem;
+            height: 1rem;
+        }
+        .icon-chevron {
+            color: #9ca3af;
+            width: 1.25rem;
+            height: 1.25rem;
+        }
+
+        /* Breadcrumb */
+        .breadcrumb {
+            font-size: 0.875rem;
+            margin-bottom: 1rem;
+        }
+        .breadcrumb .sep {
+            color: #9ca3af;
+            margin: 0 0.5rem;
+        }
+        .breadcrumb .current {
+            color: #4b5563;
+        }
+
+        /* Audio player */
+        .audio-container {
+            margin-bottom: 1.5rem;
+        }
+        .audio-container audio {
+            width: 100%;
+            max-width: 28rem;
+        }
+        .audio-downloads {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+        .audio-downloads a {
+            padding: 0.25rem 0.5rem;
+            background: #f3f4f6;
+            border-radius: 0.25rem;
+        }
+        .audio-downloads a:hover {
+            background: #e5e7eb;
+            text-decoration: none;
+        }
+
+        /* Back link */
+        .back-link {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        /* Result card (search) */
+        .result-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+        }
+        .result-header {
+            padding: 0.75rem 1rem;
+            background: #f9fafb;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .result-header h3 {
+            margin: 0;
+            font-weight: 500;
+            color: #111827;
+        }
+        .result-body {
+            padding: 1rem;
+        }
+        .result-sentence {
+            background: #f9fafb;
+            border-radius: 0.375rem;
+            padding: 0.75rem;
+        }
+
+        /* Prose (about page) */
+        .prose { max-width: 65ch; }
+        .prose h1 { font-size: 2rem; margin: 0 0 1rem; }
+        .prose h2 { font-size: 1.5rem; margin: 2rem 0 0.75rem; }
+        .prose h3 { font-size: 1.25rem; margin: 1.5rem 0 0.5rem; }
+        .prose p { margin: 0 0 1rem; }
+        .prose ul, .prose ol { margin: 0 0 1rem; padding-left: 1.5rem; }
+        .prose li { margin: 0.25rem 0; }
+        .prose blockquote {
+            margin: 1rem 0;
+            padding-left: 1rem;
+            border-left: 3px solid #e5e7eb;
+            color: #4b5563;
+        }
+        .prose code {
+            background: #f3f4f6;
+            padding: 0.125rem 0.25rem;
+            border-radius: 0.25rem;
+            font-size: 0.875em;
+        }
+
+        /* Mobile responsiveness */
+        @media (max-width: 640px) {
+            .interlinear-grid { gap: 0.5rem 0.75rem; }
+            .ipa-text { font-size: 1em; }
+            header h1 { font-size: 1.25rem; }
+        }
+    </style>
 
     {% block head %}{% endblock %}
 </head>
-<body class="bg-gray-50 min-h-screen flex flex-col">
+<body>
 
     <!-- Header -->
-    <header class="bg-white shadow-sm border-b">
-        <div class="max-w-6xl mx-auto px-4 py-4">
-            <h1 class="text-2xl font-bold text-gray-900">
-                <a href="{{ get_url(path='/') }}" class="hover:text-blue-600">{{ config.title }}</a>
-            </h1>
-            <p class="text-sm text-gray-600 mt-1">{{ config.description }}</p>
+    <header>
+        <div class="container">
+            <h1><a href="{{ base_url }}">{{ site_title }}</a></h1>
+            <p>{{ site_description }}</p>
         </div>
     </header>
 
     <!-- Navigation -->
-    <nav class="bg-white border-b sticky top-0 z-10">
-        <div class="max-w-6xl mx-auto px-4">
-            <div class="flex space-x-1 overflow-x-auto">
-                {% set current_path = current_path | default(value="") %}
-                <a href="{{ get_url(path='/') }}"
-                   class="px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors
-                          {% if current_path == '/' or current_path == '' %}border-blue-600 text-blue-600{% else %}border-transparent text-gray-600 hover:text-gray-900{% endif %}">
-                    About
-                </a>
-                <a href="{{ get_url(path='passages') }}"
-                   class="px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors
-                          {% if current_path is starting_with('passages') %}border-blue-600 text-blue-600{% else %}border-transparent text-gray-600 hover:text-gray-900{% endif %}">
-                    Passages
-                </a>
-                <a href="{{ get_url(path='search') }}"
-                   class="px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors
-                          {% if current_path is starting_with('search') %}border-blue-600 text-blue-600{% else %}border-transparent text-gray-600 hover:text-gray-900{% endif %}">
-                    Search
-                </a>
+    <nav>
+        <div class="container">
+            <div class="nav-links">
+                <a href="{{ base_url }}" class="nav-link {% if current_page == 'about' %}active{% endif %}">About</a>
+                <a href="{{ base_url }}passages/" class="nav-link {% if current_page == 'passages' %}active{% endif %}">Passages</a>
+                <a href="{{ base_url }}search/" class="nav-link {% if current_page == 'search' %}active{% endif %}">Search</a>
             </div>
         </div>
     </nav>
 
     <!-- Main Content -->
-    <main class="flex-1">
-        <div class="max-w-6xl mx-auto px-4 py-6">
+    <main>
+        <div class="container">
             {% block content %}{% endblock %}
         </div>
     </main>
 
-    <!-- Footer -->
-    <footer class="bg-white border-t mt-auto">
-        <div class="max-w-6xl mx-auto px-4 py-4 text-center text-sm text-gray-500">
-            <p>Built with <a href="https://www.getzola.org" target="_blank" rel="noopener" class="text-blue-600 hover:underline">Zola</a> and <a href="https://alpinejs.dev" target="_blank" rel="noopener" class="text-blue-600 hover:underline">Alpine.js</a></p>
-        </div>
-    </footer>
-
-    <!-- App JavaScript -->
-    <script src="{{ get_url(path='js/app.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

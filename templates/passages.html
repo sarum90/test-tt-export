@@ -1,52 +1,45 @@
 {% extends "base.html" %}
 
-{% block title %}Passages - {{ config.title }}{% endblock %}
+{% block title %}Passages - {{ site_title }}{% endblock %}
 
 {% block content %}
-{% set passages_data = load_data(path="data/passages.json") %}
-{% set audio_data = load_data(path="data/audio.json") %}
-
 <div class="mb-6">
-    <h2 class="text-xl font-bold text-gray-900">Passages</h2>
-    <p class="text-sm text-gray-600 mt-1">{{ section.pages | length }} passages available</p>
+    <h2 class="font-bold">Passages</h2>
+    <p class="text-sm text-muted mt-2">{{ passage_list | length }} passages available</p>
 </div>
 
-{% if section.pages | length == 0 %}
-<div class="text-center py-12 text-gray-500">
-    <p>No passages found.</p>
-    <p class="text-sm mt-1">Run <code class="bg-gray-100 px-1 rounded">python scripts/generate_passages.py</code> to generate passage pages.</p>
-</div>
-{% else %}
+{% if passage_list %}
 <div class="space-y-3">
-    {% for page in section.pages %}
-    {% set passage_index = page.extra.passage_index | default(value=0) %}
-    {% set passage = passages_data.passages | nth(n=passage_index) %}
-
-    <a href="{{ page.permalink }}"
-       class="block bg-white rounded-lg shadow-sm border p-4 hover:shadow-md hover:border-blue-200 transition-all">
-        <div class="flex items-center justify-between">
+    {% for p in passage_list %}
+    <a href="{{ base_url }}passages/{{ p.slug }}/" class="passage-card">
+        <div class="flex-between">
             <div>
-                <h3 class="font-medium text-gray-900">{{ page.title }}</h3>
-                {% if page.description %}
-                <p class="text-sm text-gray-500 mt-0.5">{{ page.description }}</p>
+                <h3>{{ p.name }}</h3>
+                {% if p.description %}
+                <p class="text-sm text-muted mt-2">{{ p.description }}</p>
                 {% endif %}
             </div>
             <div class="flex items-center gap-3">
-                <span class="text-xs text-gray-400">{{ page.extra.sentence_count | default(value=0) }} sentences</span>
-                {% if audio_data[page.title] %}
-                <span class="text-blue-500" title="Has audio">
-                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <span class="meta">{{ p.sentence_count }} sentences</span>
+                {% if p.has_audio %}
+                <span class="icon-audio" title="Has audio">
+                    <svg fill="currentColor" viewBox="0 0 20 20">
                         <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z"/>
                     </svg>
                 </span>
                 {% endif %}
-                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="icon-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
                 </svg>
             </div>
         </div>
     </a>
     {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-8 text-muted">
+    <p>No passages found.</p>
+    <p class="text-sm mt-2">Add passages to <code>data/passages.json</code></p>
 </div>
 {% endif %}
 {% endblock %}

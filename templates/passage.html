@@ -1,71 +1,84 @@
 {% extends "base.html" %}
-{% import "macros.html" as macros %}
 
-{% block title %}{{ page.title }} - {{ config.title }}{% endblock %}
-{% block description %}{{ page.description | default(value=config.description) }}{% endblock %}
+{% block title %}{{ passage_meta.name }} - {{ site_title }}{% endblock %}
+{% block description %}{{ passage_meta.description or site_description }}{% endblock %}
 
 {% block content %}
-{% set passages_data = load_data(path="data/passages.json") %}
-{% set audio_data = load_data(path="data/audio.json") %}
-{% set passage_index = page.extra.passage_index | default(value=0) %}
-
-{# Find the passage by iterating (Tera doesn't support array indexing) #}
-{% set passage = false %}
-{% for p in passages_data.passages %}
-    {% if loop.index0 == passage_index %}
-        {% set_global passage = p %}
-    {% endif %}
-{% endfor %}
-
 <!-- Breadcrumb -->
-<nav class="mb-4 text-sm">
-    <a href="{{ get_url(path='passages') }}" class="text-blue-600 hover:underline">Passages</a>
-    <span class="text-gray-400 mx-2">/</span>
-    <span class="text-gray-600">{{ page.title }}</span>
+<nav class="breadcrumb">
+    <a href="{{ base_url }}passages/">Passages</a>
+    <span class="sep">/</span>
+    <span class="current">{{ passage_meta.name }}</span>
 </nav>
 
-<!-- Passage Header -->
-<div class="mb-6">
-    <h2 class="text-2xl font-bold text-gray-900">{{ page.title }}</h2>
-    {% if page.description %}
-    <p class="text-gray-600 mt-1">{{ page.description }}</p>
-    {% endif %}
+<!-- Intro Content -->
+{% if passage_meta.intro_html %}
+<div class="prose mb-6">
+    {{ passage_meta.intro_html | safe }}
 </div>
+{% endif %}
 
-{% if passage %}
 <!-- Audio Player -->
-{% if audio_data[page.title] %}
-<div class="mb-6 bg-white rounded-lg shadow-sm border p-4">
-    <audio controls class="w-full max-w-md" preload="metadata">
-        <source src="{{ get_url(path=audio_data[page.title]) }}" type="audio/mpeg">
+{% if audio_urls %}
+<div class="audio-container card card-padding">
+    <audio controls preload="metadata">
+        <source src="{{ base_url }}{{ audio_urls.streaming }}">
         Your browser does not support audio playback.
     </audio>
+    <div class="audio-downloads mt-2">
+        <span class="text-sm text-muted">Download:</span>
+        <a href="{{ base_url }}{{ audio_urls.streaming }}" download class="text-sm">MP3 <span class="text-muted">(lossy, {{ audio_urls.streaming_size }})</span></a>
+        {% if audio_urls.lossless %}
+        <a href="{{ base_url }}{{ audio_urls.lossless }}" download class="text-sm">FLAC <span class="text-muted">(lossless, {{ audio_urls.lossless_size }})</span></a>
+        {% endif %}
+        {% if audio_urls.original %}
+        <a href="{{ base_url }}{{ audio_urls.original }}" download class="text-sm">Original <span class="text-muted">({{ audio_urls.original_size }})</span></a>
+        {% endif %}
+    </div>
 </div>
 {% endif %}
 
 <!-- Sentences -->
 <div class="space-y-4">
-    {% set sentence_num = 1 %}
-    {% for s in passage.sentences %}
-        {% set has_words = s.word_tracks and s.word_tracks | first and s.word_tracks | first | get(key="words") | length > 0 %}
-        {% if has_words %}
-            {{ macros::sentence(s=s, index=sentence_num) }}
-            {% set_global sentence_num = sentence_num + 1 %}
-        {% endif %}
+    {% set valid_sentences = get_valid_sentences(passage) %}
+    {% for sentence in valid_sentences %}
+    {% set grammatical_class = "" %}
+    {% if not sentence.grammatical %}{% set grammatical_class = grammatical_class + " ungrammatical" %}{% endif %}
+    {% if sentence.infelicitous %}{% set grammatical_class = grammatical_class + " infelicitous" %}{% endif %}
+
+    <div id="sentence-{{ loop.index }}" class="sentence-block{{ grammatical_class }}">
+        <!-- Sentence number -->
+        <div class="sentence-number"><a href="#sentence-{{ loop.index }}">({{ loop.index }})</a></div>
+
+        <!-- Interlinear gloss grid -->
+        {% set word_count = sentence.word_tracks[0].words | length %}
+        <div class="interlinear-grid">
+            {% for word_idx in range(word_count) %}
+            <div class="word-column">
+                {% for track in sentence.word_tracks %}
+                {% set word = track.words[word_idx] or '' %}
+                {% if track.name in ['IPA', 'Phonetic'] %}
+                <span class="ipa-text">{{ word | superscripts | safe }}</span>
+                {% else %}
+                <span class="gloss-text">{{ word | superscripts | safe }}</span>
+                {% endif %}
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Sentence-level translations -->
+        {% for track in sentence.sentence_tracks or [] %}
+        <div class="translation">
+            {{ track.sentence }}
+        </div>
+        {% endfor %}
+    </div>
     {% endfor %}
 </div>
 
-{% else %}
-<div class="text-center py-12 text-gray-500">
-    <p>Passage data not found.</p>
-    <p class="text-sm mt-1">Make sure passages.json contains this passage.</p>
-</div>
-{% endif %}
-
 <!-- Navigation -->
-<div class="mt-8 pt-4 border-t flex justify-between">
-    <a href="{{ get_url(path='passages') }}" class="text-blue-600 hover:underline">
-        &larr; Back to Passages
-    </a>
+<div class="back-link">
+    <a href="{{ base_url }}passages/">&larr; Back to Passages</a>
 </div>
 {% endblock %}

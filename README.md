@@ -8,7 +8,8 @@ A static site generator for displaying linguistic texts with interlinear glossed
 - **Statically rendered**: All content pre-rendered at build time
 - **Search**: Client-side search across all passages with highlighted results
 - **Deep linking**: Direct links to individual sentences (e.g., `/passages/story/#sentence-3`)
-- **Per-passage extras**: Each passage can have intro text and audio
+- **Per-passage extras**: Each passage can have intro text, images, and audio
+- **Automatic media optimization**: Drop in your original photos and WAV files — the build creates web-optimized versions automatically for fast page loads
 - **Responsive design**: Works on desktop and mobile
 - **Hot reload**: Dev server auto-rebuilds on file changes
 - **Simple tooling**: Just Python, no complex build chains
@@ -76,7 +77,7 @@ data/passages/
     └── intro.md
 ```
 
-- **intro.md**: Markdown with YAML frontmatter and Jinja2 helpers. On first build, seeded with:
+- **intro.md**: Markdown with YAML frontmatter and Jinja2 helpers:
   ```markdown
   ---
   name: Passage Title
@@ -86,46 +87,51 @@ data/passages/
   # {{ name }}
 
   {{ description }}
-
-  {{ image("photo.jpg", alt="Description", caption="Photo credit") }}
-
-  {{ audio("recording.wav", title="Original recording") }}
   ```
 
   **Frontmatter fields:**
   - `name`: Display name (used in navigation, page title)
   - `description`: Short description (used in passage list)
 
-  **Media helpers:**
-  - `{{ image(src, alt="", caption=None) }}` - Responsive image with optional caption
-  - `{{ audio(src, title=None) }}` - Audio player with download links
+## Adding Images
 
-### Image Processing
+Drop an image file in the passage directory and reference it with the `image()` helper:
 
-Images referenced in intro.md are automatically optimized:
+```markdown
+{{ image("speaker-photo.jpg", alt="The speaker") }}
+```
 
-- **Responsive sizes**: 600w (1x) and 1200w (2x retina) variants, sized for the ~600px prose container
-- **WebP conversion**: Modern format for smaller files
-- **`<picture>` elements**: Browsers load appropriate size/format automatically
-- **Lazy loading**: Images load as user scrolls
+With optional caption:
 
-A 2.5MB source image becomes ~13KB WebP (standard) or ~25KB (retina).
+```markdown
+{{ image("fieldwork.jpg", alt="Recording session", caption="Recorded in Somié village, 2023") }}
+```
 
-Requires `imagemagick` (see Dependencies below).
+**Automatic optimization**: You don't need to resize images yourself! The build automatically creates smaller web-optimized versions so pages load quickly. Cached in `data/image_cache/` so rebuilds are fast.
 
-### Audio Processing
+## Adding Audio
 
-Audio files are automatically converted:
+Drop an audio file in the passage directory and reference it with the `audio()` helper:
 
-- **Streaming**: MP3 128kbps for `<audio>` playback (small, fast loading)
-- **Lossless**: FLAC for quality download
-- **Original**: Raw file preserved for analysis
+```markdown
+{{ audio("recording.wav") }}
+```
 
-Converted files are cached in `data/audio_cache/` and only regenerated when the source changes.
+With optional title:
 
-Requires `ffmpeg` (see Dependencies below).
+```markdown
+{{ audio("elicitation-2023-05.wav", title="Original recording session") }}
+```
 
-### Dependencies
+**Automatic optimization**: Upload your original WAV files! The build automatically creates:
+
+- **MP3**: For streaming playback in the browser
+- **FLAC**: Lossless download option (much smaller than WAV)
+- **Original**: Preserved for those who need it
+
+Cached in `data/audio_cache/` so rebuilds are fast.
+
+## Dependencies
 
 The build requires these tools for media optimization:
 
@@ -137,7 +143,9 @@ sudo apt install ffmpeg imagemagick
 brew install ffmpeg imagemagick
 ```
 
-### 6. Build and Serve
+The build will fail with a helpful error if these aren't installed.
+
+## Build and Serve
 
 ```bash
 # Development server with hot reload

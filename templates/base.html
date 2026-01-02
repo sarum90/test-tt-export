@@ -289,20 +289,23 @@
 
         /* Audio player */
         .audio-container {
-            margin-bottom: 1.5rem;
+            max-width: 500px;
+            margin: 1.5rem auto;
         }
         .audio-container audio {
             width: 100%;
-            max-width: 28rem;
         }
         .audio-downloads {
             display: flex;
-            align-items: center;
-            gap: 0.75rem;
             flex-wrap: wrap;
+            gap: 0.5rem 0.75rem;
+            font-size: 0.875rem;
+        }
+        .audio-downloads > span:first-child {
+            width: 100%;
         }
         .audio-downloads a {
-            padding: 0.25rem 0.5rem;
+            padding: 0.125rem 0.375rem;
             background: #f3f4f6;
             border-radius: 0.25rem;
         }
@@ -367,6 +370,39 @@
             padding: 0.125rem 0.25rem;
             border-radius: 0.25rem;
             font-size: 0.875em;
+        }
+        .prose img, .prose picture {
+            display: block;
+            max-width: 100%;
+            height: auto;
+            margin: 1.5rem auto;
+            border-radius: 0.5rem;
+        }
+        .prose picture img {
+            margin: 0;
+        }
+        figure {
+            margin: 1.5rem 0;
+            text-align: center;
+        }
+        figure picture, figure img {
+            display: inline-block;
+            max-width: 100%;
+            border-radius: 0.5rem;
+        }
+        figcaption {
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin-top: 0.5rem;
+        }
+        .prose .lead {
+            font-size: 1.125rem;
+            color: #4b5563;
+            margin-bottom: 1.5rem;
+        }
+        .audio-title {
+            font-weight: 500;
+            margin-bottom: 0.5rem;
         }
 
         /* Mobile responsiveness */

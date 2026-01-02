@@ -1,8 +1,9 @@
 # Build output
 public/
 
-# Audio cache (ffmpeg conversions)
+# Media cache (ffmpeg/imagemagick conversions)
 data/audio_cache/
+data/image_cache/
 
 # OS files
 .DS_Store

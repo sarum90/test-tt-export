@@ -43,7 +43,7 @@ AUDIO_CACHE_DIR = DATA_DIR / "audio_cache"
 
 IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'}
 IMAGE_CACHE_DIR = DATA_DIR / "image_cache"
-IMAGE_WIDTHS = [480, 960, 1440]  # Responsive breakpoints
+IMAGE_WIDTHS = [600, 1200]  # 1x and 2x for ~600px prose container
 
 
 # --- Utility Functions ---
@@ -96,6 +96,213 @@ def check_ffmpeg() -> bool:
         return True
     except (subprocess.CalledProcessError, FileNotFoundError):
         return False
+
+
+def check_imagemagick() -> bool:
+    """Check if ImageMagick convert is available."""
+    try:
+        subprocess.run(['convert', '-version'], capture_output=True, check=True)
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
+
+
+def process_image(source_file: Path, slug: str) -> dict:
+    """
+    Process image into responsive variants.
+
+    Returns dict with paths to generated variants at different widths,
+    plus WebP versions for modern browsers.
+    """
+    source_file = source_file.resolve()
+    cache_dir = IMAGE_CACHE_DIR.resolve() / slug
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    source_stem = source_file.stem
+    source_ext = source_file.suffix.lower()
+    source_mtime = source_file.stat().st_mtime
+
+    variants = {
+        'original': source_file,
+        'widths': {},
+    }
+
+    # Get original dimensions
+    result = subprocess.run(
+        ['identify', '-format', '%w', str(source_file)],
+        capture_output=True, text=True
+    )
+    original_width = int(result.stdout.strip()) if result.returncode == 0 else 9999
+
+    for width in IMAGE_WIDTHS:
+        # Skip if original is smaller than target
+        if width > original_width:
+            continue
+
+        # Generate resized JPEG/PNG
+        resized_path = cache_dir / f"{source_stem}-{width}w{source_ext}"
+        webp_path = cache_dir / f"{source_stem}-{width}w.webp"
+
+        def needs_regen(cached: Path) -> bool:
+            if not cached.exists():
+                return True
+            return source_mtime > cached.stat().st_mtime
+
+        if needs_regen(resized_path):
+            print(f"  Resizing to {width}w: {source_file.name}")
+            subprocess.run([
+                'convert', str(source_file),
+                '-resize', f'{width}x>',
+                '-quality', '85',
+                str(resized_path)
+            ], capture_output=True, check=True)
+
+        if needs_regen(webp_path):
+            print(f"  Converting to WebP {width}w: {source_file.name}")
+            subprocess.run([
+                'convert', str(source_file),
+                '-resize', f'{width}x>',
+                '-quality', '85',
+                str(webp_path)
+            ], capture_output=True, check=True)
+
+        variants['widths'][width] = {
+            'fallback': resized_path,
+            'webp': webp_path,
+        }
+
+    # Also generate a WebP of the original size (capped at largest breakpoint)
+    if original_width > IMAGE_WIDTHS[-1]:
+        max_width = IMAGE_WIDTHS[-1]
+    else:
+        max_width = original_width
+
+    return variants
+
+
+class IntroRenderer:
+    """Renders intro.md content with media helpers for Jinja2 templates."""
+
+    def __init__(self, slug: str, passage_dir: Path):
+        self.slug = slug
+        self.passage_dir = passage_dir
+        self.files_to_copy = []  # List of (source_path, dest_name) tuples
+        self.audio_data = None   # Audio URLs for template
+
+    def image(self, src: str, alt: str = "", caption: str = None) -> str:
+        """
+        Generate responsive image HTML.
+
+        Usage in intro.md:
+            {{ image("photo.jpg", alt="Description", caption="Photo credit") }}
+        """
+        # Skip external URLs
+        if src.startswith(('http://', 'https://', '//')):
+            img = f'<img src="{src}" alt="{alt}" loading="lazy">'
+            if caption:
+                return f'<figure>{img}<figcaption>{caption}</figcaption></figure>'
+            return img
+
+        source_file = self.passage_dir / src
+        if not source_file.exists():
+            return f'<!-- image not found: {src} -->'
+
+        # SVGs don't need processing
+        if source_file.suffix.lower() == '.svg':
+            self.files_to_copy.append((source_file, src))
+            img = f'<img src="{src}" alt="{alt}" loading="lazy">'
+            if caption:
+                return f'<figure>{img}<figcaption>{caption}</figcaption></figure>'
+            return img
+
+        # Process image into responsive variants
+        variants = process_image(source_file, self.slug)
+
+        # Build srcset strings
+        webp_srcset = []
+        fallback_srcset = []
+
+        sorted_widths = sorted(variants['widths'].keys())
+        for width in sorted_widths:
+            v = variants['widths'][width]
+            webp_srcset.append(f"{v['webp'].name} {width}w")
+            fallback_srcset.append(f"{v['fallback'].name} {width}w")
+            self.files_to_copy.append((v['webp'], v['webp'].name))
+            self.files_to_copy.append((v['fallback'], v['fallback'].name))
+
+        if not sorted_widths:
+            # Image smaller than smallest breakpoint, copy original
+            self.files_to_copy.append((source_file, src))
+            img = f'<img src="{src}" alt="{alt}" loading="lazy">'
+            if caption:
+                return f'<figure>{img}<figcaption>{caption}</figcaption></figure>'
+            return img
+
+        # Build picture element
+        largest_width = sorted_widths[-1]
+        largest_fallback = variants['widths'][largest_width]['fallback'].name
+
+        picture = f'''<picture>
+  <source type="image/webp" srcset="{', '.join(webp_srcset)}" sizes="(max-width: 640px) 100vw, 600px">
+  <img src="{largest_fallback}" srcset="{', '.join(fallback_srcset)}" sizes="(max-width: 640px) 100vw, 600px" alt="{alt}" loading="lazy">
+</picture>'''
+
+        if caption:
+            return f'<figure>{picture}<figcaption>{caption}</figcaption></figure>'
+        return picture
+
+    def audio(self, src: str, title: str = None) -> str:
+        """
+        Generate audio player HTML with download links.
+
+        Usage in intro.md:
+            {{ audio("recording.wav") }}
+            {{ audio("recording.wav", title="Original recording") }}
+        """
+        source_file = self.passage_dir / src
+        if not source_file.exists():
+            return f'<!-- audio not found: {src} -->'
+
+        # Process audio into variants
+        variants = get_audio_variants(source_file, self.slug)
+
+        def format_size(path: Path) -> str:
+            size = path.stat().st_size
+            if size >= 1024 * 1024:
+                return f"{size / (1024 * 1024):.1f} MB"
+            elif size >= 1024:
+                return f"{size / 1024:.0f} KB"
+            return f"{size} B"
+
+        # Track files to copy and build URLs
+        streaming_name = variants['streaming'].name
+        self.files_to_copy.append((variants['streaming'], streaming_name))
+
+        downloads = [f'<a href="{streaming_name}" download>MP3 <span class="text-muted">({format_size(variants["streaming"])})</span></a>']
+
+        if 'lossless' in variants and variants['lossless'] != variants['streaming']:
+            lossless_name = variants['lossless'].name
+            self.files_to_copy.append((variants['lossless'], lossless_name))
+            downloads.append(f'<a href="{lossless_name}" download>FLAC <span class="text-muted">(lossless, {format_size(variants["lossless"])})</span></a>')
+
+        if variants['original'] not in (variants['streaming'], variants.get('lossless')):
+            original_name = variants['original'].name
+            self.files_to_copy.append((variants['original'], original_name))
+            downloads.append(f'<a href="{original_name}" download>Original <span class="text-muted">({format_size(variants["original"])})</span></a>')
+
+        title_html = f'<div class="audio-title">{title}</div>' if title else ''
+
+        return f'''<div class="audio-container card card-padding">
+  {title_html}
+  <audio controls preload="metadata">
+    <source src="{streaming_name}">
+    Your browser does not support audio playback.
+  </audio>
+  <div class="audio-downloads mt-2">
+    <span class="text-sm text-muted">Download:</span>
+    {" ".join(downloads)}
+  </div>
+</div>'''
 
 
 def get_audio_variants(source_file: Path, slug: str) -> dict:
@@ -198,8 +405,14 @@ def ensure_passage_dirs(passages: list) -> None:
         if needs_seed:
             name = p.get('name', 'Untitled')
             description = p.get('description', '')
-            # Body uses Jinja2 to reference frontmatter variables
-            body = '# {{ name }}\n\n{{ description }}\n'
+            # Body uses Jinja2 helpers for frontmatter and media
+            body = '''# {{ name }}
+
+{{ description }}
+
+{# Add media with: {{ image("photo.jpg", alt="...", caption="...") }} #}
+{# Add audio with: {{ audio("recording.wav", title="...") }} #}
+'''
             post = frontmatter.Post(content=body, name=name, description=description)
             intro_path.write_text(frontmatter.dumps(post), encoding='utf-8')
 
@@ -210,14 +423,14 @@ def ensure_passage_dirs(passages: list) -> None:
             print(f"Removed orphaned: data/passages/{item.name}/")
 
 
-def load_passage_extras(slug: str, has_ffmpeg: bool) -> dict:
+def load_passage_extras(slug: str) -> dict:
     """Load extra data for a passage from its data directory."""
     passage_dir = PASSAGES_DATA_DIR / slug
     extras = {
         'name': None,
         'description': None,
-        'intro_html': None,
-        'audio_variants': None,
+        'intro_content': None,  # Raw markdown body
+        'intro_metadata': {},   # Frontmatter metadata
     }
 
     if not passage_dir.exists():
@@ -227,37 +440,39 @@ def load_passage_extras(slug: str, has_ffmpeg: bool) -> dict:
     intro_path = passage_dir / "intro.md"
     if intro_path.exists():
         post = frontmatter.load(intro_path)
-        # Get name/description from frontmatter
         extras['name'] = post.get('name')
         extras['description'] = post.get('description')
-        # Render body content as HTML (if any)
-        # Body can reference frontmatter vars via Jinja2: {{ name }}, {{ description }}
-        if post.content.strip():
-            from jinja2 import Template
-            body_template = Template(post.content)
-            rendered_body = body_template.render(**post.metadata)
-            extras['intro_html'] = render_markdown(rendered_body)
-
-    # Find audio file (first match)
-    audio_file = None
-    for ext in AUDIO_EXTENSIONS:
-        audio_files = list(passage_dir.glob(f'*{ext}'))
-        if audio_files:
-            audio_file = audio_files[0]
-            break
-
-    if audio_file:
-        if has_ffmpeg:
-            extras['audio_variants'] = get_audio_variants(audio_file, slug)
-        else:
-            # No ffmpeg - just use original for everything
-            extras['audio_variants'] = {
-                'streaming': audio_file,
-                'original': audio_file,
-                'original_name': audio_file.name,
-            }
+        extras['intro_content'] = post.content
+        extras['intro_metadata'] = dict(post.metadata)
 
     return extras
+
+
+def render_intro(slug: str, passage_dir: Path, content: str, metadata: dict) -> tuple[str, list]:
+    """
+    Render intro.md content with media helpers.
+
+    Returns (rendered_html, files_to_copy).
+    """
+    if not content or not content.strip():
+        return None, []
+
+    from jinja2 import Template
+
+    renderer = IntroRenderer(slug, passage_dir)
+
+    # Render Jinja2 template with frontmatter vars and media helpers
+    body_template = Template(content)
+    rendered_body = body_template.render(
+        **metadata,
+        image=renderer.image,
+        audio=renderer.audio,
+    )
+
+    # Convert markdown to HTML
+    intro_html = render_markdown(rendered_body)
+
+    return intro_html, renderer.files_to_copy
 
 
 def load_about_content() -> str:
@@ -292,10 +507,18 @@ def build_site(base_url: str = "/"):
     about_content = load_about_content()
     passages = passages_data.get('passages', [])
 
-    # Check for ffmpeg
-    has_ffmpeg = check_ffmpeg()
-    if not has_ffmpeg:
-        print("Warning: ffmpeg not found. Audio files will not be converted.")
+    # Check for required tools
+    if not check_ffmpeg():
+        print("Error: ffmpeg is required but not found. Install it with:")
+        print("  Ubuntu/Debian: sudo apt install ffmpeg")
+        print("  macOS: brew install ffmpeg")
+        raise SystemExit(1)
+
+    if not check_imagemagick():
+        print("Error: ImageMagick is required but not found. Install it with:")
+        print("  Ubuntu/Debian: sudo apt install imagemagick")
+        print("  macOS: brew install imagemagick")
+        raise SystemExit(1)
 
     # Ensure passage data directories exist
     ensure_passage_dirs(passages)
@@ -304,7 +527,7 @@ def build_site(base_url: str = "/"):
     passage_list = []
     for i, p in enumerate(passages):
         slug = slugify(p.get('name', f'passage-{i}'))
-        extras = load_passage_extras(slug, has_ffmpeg)
+        extras = load_passage_extras(slug)
         # Use frontmatter values, fall back to passages.json
         name = extras['name'] or p.get('name', f'Passage {i+1}')
         description = extras['description'] or p.get('description', '')
@@ -314,9 +537,8 @@ def build_site(base_url: str = "/"):
             'description': description,
             'slug': slug,
             'sentence_count': len(get_valid_sentences(p)),
-            'has_audio': extras['audio_variants'] is not None,
-            'intro_html': extras['intro_html'],
-            'audio_variants': extras['audio_variants'],
+            'intro_content': extras['intro_content'],
+            'intro_metadata': extras['intro_metadata'],
         })
 
     # Create Jinja environment
@@ -364,56 +586,28 @@ def build_site(base_url: str = "/"):
     for i, passage in enumerate(passages):
         meta = passage_list[i]
         passage_out_dir = passages_out_dir / meta['slug']
-        passage_out_dir.mkdir(parents=True)
-
-        # Copy audio files and build URLs
-        audio_urls = None
-        if meta['audio_variants']:
-            variants = meta['audio_variants']
-            audio_urls = {}
-
-            def format_size(path: Path) -> str:
-                size = path.stat().st_size
-                if size >= 1024 * 1024:
-                    return f"{size / (1024 * 1024):.1f} MB"
-                elif size >= 1024:
-                    return f"{size / 1024:.0f} KB"
-                return f"{size} B"
-
-            # Copy streaming version
-            streaming_dest = passage_out_dir / variants['streaming'].name
-            shutil.copy2(variants['streaming'], streaming_dest)
-            audio_urls['streaming'] = f"passages/{meta['slug']}/{variants['streaming'].name}"
-            audio_urls['streaming_size'] = format_size(variants['streaming'])
-
-            # Copy lossless version (if different from streaming)
-            if 'lossless' in variants and variants['lossless'] != variants['streaming']:
-                lossless_dest = passage_out_dir / variants['lossless'].name
-                shutil.copy2(variants['lossless'], lossless_dest)
-                audio_urls['lossless'] = f"passages/{meta['slug']}/{variants['lossless'].name}"
-                audio_urls['lossless_name'] = variants['lossless'].name
-                audio_urls['lossless_size'] = format_size(variants['lossless'])
-
-            # Copy original (if different from streaming and lossless)
-            if variants['original'] not in (variants['streaming'], variants.get('lossless')):
-                original_dest = passage_out_dir / variants['original'].name
-                shutil.copy2(variants['original'], original_dest)
-                audio_urls['original'] = f"passages/{meta['slug']}/{variants['original'].name}"
-                audio_urls['original_name'] = variants['original_name']
-                audio_urls['original_size'] = format_size(variants['original'])
-
-        # Copy images from passage data directory
+        passage_out_dir.mkdir(parents=True, exist_ok=True)
         passage_data_dir = PASSAGES_DATA_DIR / meta['slug']
-        if passage_data_dir.exists():
-            for img_file in passage_data_dir.iterdir():
-                if img_file.suffix.lower() in IMAGE_EXTENSIONS:
-                    shutil.copy2(img_file, passage_out_dir / img_file.name)
+
+        # Render intro content with media helpers
+        intro_html, files_to_copy = render_intro(
+            meta['slug'],
+            passage_data_dir,
+            meta['intro_content'],
+            meta['intro_metadata'],
+        )
+
+        # Copy media files referenced in intro
+        for src_path, dest_name in files_to_copy:
+            shutil.copy2(src_path, passage_out_dir / dest_name)
+
+        # Build render context
+        render_meta = {**meta, 'intro_html': intro_html}
 
         html = template.render(
             **common_context,
             passage=passage,
-            passage_meta=meta,
-            audio_urls=audio_urls,
+            passage_meta=render_meta,
             current_page='passages'
         )
         (passage_out_dir / "index.html").write_text(html, encoding='utf-8')

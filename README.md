@@ -76,7 +76,7 @@ data/passages/
     └── intro.md
 ```
 
-- **intro.md**: Markdown with YAML frontmatter. On first build, seeded with:
+- **intro.md**: Markdown with YAML frontmatter and Jinja2 helpers. On first build, seeded with:
   ```markdown
   ---
   name: Passage Title
@@ -86,13 +86,36 @@ data/passages/
   # {{ name }}
 
   {{ description }}
+
+  {{ image("photo.jpg", alt="Description", caption="Photo credit") }}
+
+  {{ audio("recording.wav", title="Original recording") }}
   ```
-  The body uses Jinja2 syntax to reference frontmatter variables. This makes it explicit what's being rendered and lets you customize the layout (e.g., add content between title and description, use different heading levels, etc.).
-- **Audio**: Any `.mp3`, `.wav`, `.ogg`, `.m4a`, `.flac`, or `.aiff` file in the directory
+
+  **Frontmatter fields:**
+  - `name`: Display name (used in navigation, page title)
+  - `description`: Short description (used in passage list)
+
+  **Media helpers:**
+  - `{{ image(src, alt="", caption=None) }}` - Responsive image with optional caption
+  - `{{ audio(src, title=None) }}` - Audio player with download links
+
+### Image Processing
+
+Images referenced in intro.md are automatically optimized:
+
+- **Responsive sizes**: 600w (1x) and 1200w (2x retina) variants, sized for the ~600px prose container
+- **WebP conversion**: Modern format for smaller files
+- **`<picture>` elements**: Browsers load appropriate size/format automatically
+- **Lazy loading**: Images load as user scrolls
+
+A 2.5MB source image becomes ~13KB WebP (standard) or ~25KB (retina).
+
+Requires `imagemagick` (see Dependencies below).
 
 ### Audio Processing
 
-If `ffmpeg` is installed, audio files are automatically converted:
+Audio files are automatically converted:
 
 - **Streaming**: MP3 128kbps for `<audio>` playback (small, fast loading)
 - **Lossless**: FLAC for quality download
@@ -100,7 +123,19 @@ If `ffmpeg` is installed, audio files are automatically converted:
 
 Converted files are cached in `data/audio_cache/` and only regenerated when the source changes.
 
-Without ffmpeg, the original file is used directly (no conversion).
+Requires `ffmpeg` (see Dependencies below).
+
+### Dependencies
+
+The build requires these tools for media optimization:
+
+```bash
+# Ubuntu/Debian
+sudo apt install ffmpeg imagemagick
+
+# macOS
+brew install ffmpeg imagemagick
+```
 
 ### 6. Build and Serve
 

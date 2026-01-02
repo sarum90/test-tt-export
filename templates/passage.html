@@ -13,29 +13,7 @@
 
 <!-- Intro Content -->
 {% if passage_meta.intro_html %}
-<div class="prose mb-6">
-    {{ passage_meta.intro_html | safe }}
-</div>
-{% endif %}
-
-<!-- Audio Player -->
-{% if audio_urls %}
-<div class="audio-container card card-padding">
-    <audio controls preload="metadata">
-        <source src="{{ base_url }}{{ audio_urls.streaming }}">
-        Your browser does not support audio playback.
-    </audio>
-    <div class="audio-downloads mt-2">
-        <span class="text-sm text-muted">Download:</span>
-        <a href="{{ base_url }}{{ audio_urls.streaming }}" download class="text-sm">MP3 <span class="text-muted">(lossy, {{ audio_urls.streaming_size }})</span></a>
-        {% if audio_urls.lossless %}
-        <a href="{{ base_url }}{{ audio_urls.lossless }}" download class="text-sm">FLAC <span class="text-muted">(lossless, {{ audio_urls.lossless_size }})</span></a>
-        {% endif %}
-        {% if audio_urls.original %}
-        <a href="{{ base_url }}{{ audio_urls.original }}" download class="text-sm">Original <span class="text-muted">({{ audio_urls.original_size }})</span></a>
-        {% endif %}
-    </div>
-</div>
+{{ passage_meta.intro_html | safe }}
 {% endif %}
 
 <!-- Sentences -->

@@ -9,6 +9,14 @@
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
+    <!-- Prefetch main nav pages immediately -->
+    <link rel="prefetch" href="{{ base_url }}">
+    <link rel="prefetch" href="{{ base_url }}passages/">
+    <link rel="prefetch" href="{{ base_url }}search/">
+
+    <!-- Prefetch other links on hover -->
+    <script src="https://cdn.jsdelivr.net/npm/instant.page@5.2.0/instantpage.min.js" type="module" integrity="sha384-jnZyxPjiipYXnU56ewZNIRc1EFc9Tq7T5K0X8pLcLlLAQ2n5AC/bR39RXZ/fBWsY" crossorigin="anonymous"></script>
+
     <style>
         /* Reset & Base */
         *, *::before, *::after { box-sizing: border-box; }

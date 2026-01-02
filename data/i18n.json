@@ -1,0 +1,36 @@
+{
+  "en": {
+    "lang.name": "English",
+    "lang.flag": "🇬🇧",
+    "nav.about": "About",
+    "nav.passages": "Passages",
+    "nav.search": "Search",
+    "nav.glossary": "Glossary",
+    "passages.title": "Passages",
+    "passages.sentence_count": "{count} sentences",
+    "search.title": "Search",
+    "search.placeholder": "Search words, glosses, or translations...",
+    "search.across": "Search across {count} passages",
+    "search.results": "{count} results",
+    "search.no_results": "No results found",
+    "passage.back": "Back to Passages",
+    "view.show_hide": "Show/Hide:"
+  },
+  "fr": {
+    "lang.name": "Français",
+    "lang.flag": "🇫🇷",
+    "nav.about": "À propos",
+    "nav.passages": "Textes",
+    "nav.search": "Recherche",
+    "nav.glossary": "Glossaire",
+    "passages.title": "Textes",
+    "passages.sentence_count": "{count} phrases",
+    "search.title": "Recherche",
+    "search.placeholder": "Rechercher mots, gloses ou traductions...",
+    "search.across": "Rechercher dans {count} textes",
+    "search.results": "{count} résultats",
+    "search.no_results": "Aucun résultat",
+    "passage.back": "Retour aux textes",
+    "view.show_hide": "Afficher/Masquer :"
+  }
+}

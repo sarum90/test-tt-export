@@ -74,12 +74,43 @@ def render_superscripts(text: str) -> str:
     return re.sub(r'\^\{([^}]*)\}', r'<sup>\1</sup>', text)
 
 
+def get_available_tracks(passage: dict, display_order: list = None) -> list:
+    """Get list of track names available in this passage, in display order."""
+    word_track_names = set()
+    sentence_track_names = set()
+
+    for sentence in passage.get('sentences', []):
+        for track in sentence.get('word_tracks', []):
+            word_track_names.add(track.get('name'))
+        for track in sentence.get('sentence_tracks', []):
+            sentence_track_names.add(track.get('name'))
+
+    all_tracks = word_track_names | sentence_track_names
+
+    # Return in config-specified order, then any remaining tracks alphabetically
+    if display_order:
+        ordered = [name for name in display_order if name in all_tracks]
+        remaining = sorted(all_tracks - set(ordered))
+        return ordered + remaining
+    return sorted(all_tracks)
+
+
 def get_valid_sentences(passage: dict) -> list:
-    """Filter out empty sentences from a passage."""
+    """Filter out empty sentences from a passage.
+
+    A sentence is valid if it has either:
+    - word_tracks with at least one word, OR
+    - sentence_tracks with content
+    """
     sentences = []
     for s in passage.get('sentences', []):
-        tracks = s.get('word_tracks', [])
-        if tracks and tracks[0].get('words') and len(tracks[0]['words']) > 0:
+        word_tracks = s.get('word_tracks', [])
+        sentence_tracks = s.get('sentence_tracks', [])
+
+        has_words = word_tracks and word_tracks[0].get('words') and len(word_tracks[0]['words']) > 0
+        has_translations = sentence_tracks and any(t.get('sentence') for t in sentence_tracks)
+
+        if has_words or has_translations:
             sentences.append(s)
     return sentences
 
@@ -372,6 +403,79 @@ def get_audio_variants(source_file: Path, slug: str) -> dict:
     return variants
 
 
+# --- Configuration ---
+
+VERSION_DEFAULTS = {
+    "V1": {"word_tracks": [], "sentence_tracks": []},
+    "V2": {"word_tracks": [], "sentence_tracks": ["English", "French"]},
+    "V3": {"word_tracks": ["IPA"], "sentence_tracks": ["English", "French"]},
+    "V4": {"word_tracks": ["IPA", "Gloss"], "sentence_tracks": ["English", "French"]},
+}
+
+
+def load_config() -> dict:
+    """Load site configuration from data/config.json."""
+    config_path = DATA_DIR / "config.json"
+    if config_path.exists():
+        with open(config_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {
+        "version": "V4",
+        "site_title": "Language Passages",
+        "site_description": "Interactive linguistic text corpus with interlinear glosses",
+        "version_definitions": VERSION_DEFAULTS,
+    }
+
+
+def filter_tracks(passages_data: dict, config: dict) -> dict:
+    """Filter word_tracks and sentence_tracks based on version config."""
+    version = config.get('version', 'V4')
+    version_defs = config.get('version_definitions', VERSION_DEFAULTS)
+    version_config = version_defs.get(version, VERSION_DEFAULTS['V4'])
+
+    allowed_word_tracks = set(version_config.get('word_tracks', []))
+    allowed_sentence_tracks = set(version_config.get('sentence_tracks', []))
+
+    filtered = deepcopy(passages_data)
+    for passage in filtered.get('passages', []):
+        for sentence in passage.get('sentences', []):
+            # Filter word_tracks
+            sentence['word_tracks'] = [
+                t for t in sentence.get('word_tracks', [])
+                if t.get('name') in allowed_word_tracks
+            ]
+            # Filter sentence_tracks
+            sentence['sentence_tracks'] = [
+                t for t in sentence.get('sentence_tracks', [])
+                if t.get('name') in allowed_sentence_tracks
+            ]
+    return filtered
+
+
+def load_glossary_content(lang: str = 'en') -> str:
+    """Load and render glossary.md content for specified language."""
+    # Try language-specific file first, fall back to default
+    if lang != 'en':
+        glossary_path = DATA_DIR / f"glossary-{lang}.md"
+        if glossary_path.exists():
+            with open(glossary_path, 'r', encoding='utf-8') as f:
+                return render_markdown(f.read())
+    glossary_path = DATA_DIR / "glossary.md"
+    if glossary_path.exists():
+        with open(glossary_path, 'r', encoding='utf-8') as f:
+            return render_markdown(f.read())
+    return ""
+
+
+def load_i18n() -> dict:
+    """Load internationalization strings."""
+    i18n_path = DATA_DIR / "i18n.json"
+    if i18n_path.exists():
+        with open(i18n_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {"en": {}, "fr": {}}
+
+
 # --- Build Functions ---
 
 def load_data() -> dict:
@@ -423,7 +527,7 @@ def ensure_passage_dirs(passages: list) -> None:
             print(f"Removed orphaned: data/passages/{item.name}/")
 
 
-def load_passage_extras(slug: str) -> dict:
+def load_passage_extras(slug: str, lang: str = 'en') -> dict:
     """Load extra data for a passage from its data directory."""
     passage_dir = PASSAGES_DATA_DIR / slug
     extras = {
@@ -436,8 +540,15 @@ def load_passage_extras(slug: str) -> dict:
     if not passage_dir.exists():
         return extras
 
-    # Load intro.md with frontmatter
-    intro_path = passage_dir / "intro.md"
+    # Try language-specific intro first, fall back to default
+    intro_path = None
+    if lang != 'en':
+        lang_intro_path = passage_dir / f"intro-{lang}.md"
+        if lang_intro_path.exists():
+            intro_path = lang_intro_path
+    if intro_path is None:
+        intro_path = passage_dir / "intro.md"
+
     if intro_path.exists():
         post = frontmatter.load(intro_path)
         extras['name'] = post.get('name')
@@ -475,8 +586,14 @@ def render_intro(slug: str, passage_dir: Path, content: str, metadata: dict) -> 
     return intro_html, renderer.files_to_copy
 
 
-def load_about_content() -> str:
-    """Load and render about.md content."""
+def load_about_content(lang: str = 'en') -> str:
+    """Load and render about.md content for specified language."""
+    # Try language-specific file first, fall back to default
+    if lang != 'en':
+        about_path = DATA_DIR / f"about-{lang}.md"
+        if about_path.exists():
+            with open(about_path, 'r', encoding='utf-8') as f:
+                return render_markdown(f.read())
     about_path = DATA_DIR / "about.md"
     if about_path.exists():
         with open(about_path, 'r', encoding='utf-8') as f:
@@ -484,8 +601,8 @@ def load_about_content() -> str:
     return "<p>Edit data/about.md to add content here.</p>"
 
 
-def create_jinja_env() -> Environment:
-    """Create Jinja2 environment with custom filters."""
+def create_jinja_env(i18n_strings: dict = None) -> Environment:
+    """Create Jinja2 environment with custom filters and i18n."""
     env = Environment(
         loader=FileSystemLoader(TEMPLATES_DIR),
         autoescape=True
@@ -498,37 +615,44 @@ def create_jinja_env() -> Environment:
     # Add custom globals
     env.globals['get_valid_sentences'] = get_valid_sentences
 
+    # Add translation helper
+    strings = i18n_strings or {}
+    def t(key: str, **kwargs) -> str:
+        """Translation helper: t('key') or t('key', count=5)"""
+        text = strings.get(key, key)
+        for k, v in kwargs.items():
+            text = text.replace(f'{{{k}}}', str(v))
+        return text
+    env.globals['t'] = t
+
     return env
 
 
-def build_site(base_url: str = "/"):
-    """Build the complete static site."""
-    passages_data = load_data()
-    about_content = load_about_content()
+def build_language_version(
+    lang: str,
+    base_url: str,
+    output_dir: Path,
+    all_languages: list,
+    config: dict,
+    passages_data: dict,
+    i18n_strings: dict,
+):
+    """Build a single language version of the site."""
     passages = passages_data.get('passages', [])
+    site_title = config.get('site_title', 'Language Passages')
+    site_description = config.get('site_description', 'Interactive linguistic text corpus')
+    current_version = config.get('version', 'V4')
+    track_display_order = config.get('track_display_order', [])
 
-    # Check for required tools
-    if not check_ffmpeg():
-        print("Error: ffmpeg is required but not found. Install it with:")
-        print("  Ubuntu/Debian: sudo apt install ffmpeg")
-        print("  macOS: brew install ffmpeg")
-        raise SystemExit(1)
+    # Load language-specific content
+    about_content = load_about_content(lang)
+    glossary_content = load_glossary_content(lang)
 
-    if not check_imagemagick():
-        print("Error: ImageMagick is required but not found. Install it with:")
-        print("  Ubuntu/Debian: sudo apt install imagemagick")
-        print("  macOS: brew install imagemagick")
-        raise SystemExit(1)
-
-    # Ensure passage data directories exist
-    ensure_passage_dirs(passages)
-
-    # Build passage metadata for templates
+    # Build passage metadata with language-specific extras
     passage_list = []
     for i, p in enumerate(passages):
         slug = slugify(p.get('name', f'passage-{i}'))
-        extras = load_passage_extras(slug)
-        # Use frontmatter values, fall back to passages.json
+        extras = load_passage_extras(slug, lang)
         name = extras['name'] or p.get('name', f'Passage {i+1}')
         description = extras['description'] or p.get('description', '')
         passage_list.append({
@@ -541,45 +665,41 @@ def build_site(base_url: str = "/"):
             'intro_metadata': extras['intro_metadata'],
         })
 
-    # Create Jinja environment
-    env = create_jinja_env()
+    # Create Jinja environment with i18n
+    env = create_jinja_env(i18n_strings)
+
+    # Filter to other languages (not current)
+    other_languages = [l for l in all_languages if l['code'] != lang]
 
     # Common template context
     common_context = {
-        'site_title': 'Language Passages',
-        'site_description': 'Interactive linguistic text corpus with interlinear glosses',
+        'site_title': site_title,
+        'site_description': site_description,
         'base_url': base_url,
+        'lang': lang,
+        'other_languages': other_languages,
         'passages': passages,
         'passage_list': passage_list,
+        'current_version': current_version,
     }
 
-    # Clean and create output directory
-    if OUTPUT_DIR.exists():
-        shutil.rmtree(OUTPUT_DIR)
-    OUTPUT_DIR.mkdir(parents=True)
-
-    # Copy static files
-    if STATIC_DIR.exists():
-        for item in STATIC_DIR.iterdir():
-            dest = OUTPUT_DIR / item.name
-            if item.is_dir():
-                shutil.copytree(item, dest)
-            else:
-                shutil.copy2(item, dest)
+    # Create output directory
+    output_dir.mkdir(parents=True, exist_ok=True)
+    lang_prefix = f"[{lang}] " if lang != 'en' else ""
 
     # Render about page (index.html)
     template = env.get_template('about.html')
     html = template.render(**common_context, about_content=about_content, current_page='about')
-    (OUTPUT_DIR / "index.html").write_text(html, encoding='utf-8')
-    print("Built: index.html")
+    (output_dir / "index.html").write_text(html, encoding='utf-8')
+    print(f"{lang_prefix}Built: index.html")
 
     # Render passages list
     template = env.get_template('passages.html')
     html = template.render(**common_context, current_page='passages')
-    passages_out_dir = OUTPUT_DIR / "passages"
+    passages_out_dir = output_dir / "passages"
     passages_out_dir.mkdir(parents=True, exist_ok=True)
     (passages_out_dir / "index.html").write_text(html, encoding='utf-8')
-    print("Built: passages/index.html")
+    print(f"{lang_prefix}Built: passages/index.html")
 
     # Render individual passage pages
     template = env.get_template('passage.html')
@@ -599,19 +719,23 @@ def build_site(base_url: str = "/"):
 
         # Copy media files referenced in intro
         for src_path, dest_name in files_to_copy:
-            shutil.copy2(src_path, passage_out_dir / dest_name)
+            dest_path = passage_out_dir / dest_name
+            if not dest_path.exists():  # Avoid re-copying for FR version
+                shutil.copy2(src_path, dest_path)
 
         # Build render context
         render_meta = {**meta, 'intro_html': intro_html}
+        available_tracks = get_available_tracks(passage, track_display_order)
 
         html = template.render(
             **common_context,
             passage=passage,
             passage_meta=render_meta,
+            available_tracks=available_tracks,
             current_page='passages'
         )
         (passage_out_dir / "index.html").write_text(html, encoding='utf-8')
-        print(f"Built: passages/{meta['slug']}/index.html")
+        print(f"{lang_prefix}Built: passages/{meta['slug']}/index.html")
 
     # Render search page
     template = env.get_template('search.html')
@@ -620,10 +744,106 @@ def build_site(base_url: str = "/"):
         passages_json=json.dumps(passages_data, ensure_ascii=False),
         current_page='search'
     )
-    search_dir = OUTPUT_DIR / "search"
-    search_dir.mkdir(parents=True)
+    search_dir = output_dir / "search"
+    search_dir.mkdir(parents=True, exist_ok=True)
     (search_dir / "index.html").write_text(html, encoding='utf-8')
-    print("Built: search/index.html")
+    print(f"{lang_prefix}Built: search/index.html")
+
+    # Render glossary page
+    if glossary_content:
+        template = env.get_template('glossary.html')
+        html = template.render(
+            **common_context,
+            glossary_content=glossary_content,
+            current_page='glossary'
+        )
+        glossary_dir = output_dir / "glossary"
+        glossary_dir.mkdir(parents=True, exist_ok=True)
+        (glossary_dir / "index.html").write_text(html, encoding='utf-8')
+        print(f"{lang_prefix}Built: glossary/index.html")
+
+
+def build_site(base_url: str = "/", version_override: str = None):
+    """Build the complete static site in all languages."""
+    # Load configuration
+    config = load_config()
+    if version_override:
+        config['version'] = version_override
+
+    # Load and filter passages data
+    passages_data = load_data()
+    passages_data = filter_tracks(passages_data, config)
+    passages = passages_data.get('passages', [])
+
+    # Load i18n strings
+    i18n = load_i18n()
+
+    # Check for required tools
+    if not check_ffmpeg():
+        print("Error: ffmpeg is required but not found. Install it with:")
+        print("  Ubuntu/Debian: sudo apt install ffmpeg")
+        print("  macOS: brew install ffmpeg")
+        raise SystemExit(1)
+
+    if not check_imagemagick():
+        print("Error: ImageMagick is required but not found. Install it with:")
+        print("  Ubuntu/Debian: sudo apt install imagemagick")
+        print("  macOS: brew install imagemagick")
+        raise SystemExit(1)
+
+    # Ensure passage data directories exist
+    ensure_passage_dirs(passages)
+
+    # Clean and create output directory
+    if OUTPUT_DIR.exists():
+        shutil.rmtree(OUTPUT_DIR)
+    OUTPUT_DIR.mkdir(parents=True)
+
+    # Copy static files
+    if STATIC_DIR.exists():
+        for item in STATIC_DIR.iterdir():
+            dest = OUTPUT_DIR / item.name
+            if item.is_dir():
+                shutil.copytree(item, dest)
+            else:
+                shutil.copy2(item, dest)
+
+    # Get language configuration
+    languages = config.get('languages', ['en'])
+    default_lang = config.get('default_language', languages[0] if languages else 'en')
+
+    # Build language info list with URLs
+    all_languages = []
+    for lang in languages:
+        lang_strings = i18n.get(lang, {})
+        if lang == default_lang:
+            lang_url = base_url
+        else:
+            lang_url = f"{base_url}{lang}/"
+        all_languages.append({
+            'code': lang,
+            'url': lang_url,
+            'name': lang_strings.get('lang.name', lang.upper()),
+            'flag': lang_strings.get('lang.flag', ''),
+        })
+
+    # Build each language version
+    for lang_info in all_languages:
+        lang = lang_info['code']
+        if lang == default_lang:
+            lang_output_dir = OUTPUT_DIR
+        else:
+            lang_output_dir = OUTPUT_DIR / lang
+
+        build_language_version(
+            lang=lang,
+            base_url=lang_info['url'],
+            output_dir=lang_output_dir,
+            all_languages=all_languages,
+            config=config,
+            passages_data=passages_data,
+            i18n_strings=i18n.get(lang, {}),
+        )
 
     print(f"\nSite built to {OUTPUT_DIR}/")
 
@@ -631,9 +851,10 @@ def build_site(base_url: str = "/"):
 class RebuildHandler(FileSystemEventHandler):
     """File system event handler with debounced rebuild."""
 
-    def __init__(self, base_url: str, project_dir: Path, debounce_ms: int = 20):
+    def __init__(self, base_url: str, project_dir: Path, version_override: str = None, debounce_ms: int = 20):
         self.base_url = base_url
         self.project_dir = project_dir
+        self.version_override = version_override
         self.debounce_ms = debounce_ms
         self.timer = None
         self.lock = threading.Lock()
@@ -645,7 +866,7 @@ class RebuildHandler(FileSystemEventHandler):
             # Run build from project directory
             original_cwd = os.getcwd()
             os.chdir(self.project_dir)
-            build_site(base_url=self.base_url)
+            build_site(base_url=self.base_url, version_override=self.version_override)
             os.chdir(original_cwd)
         except Exception as e:
             print(f"Rebuild failed: {e}")
@@ -674,13 +895,13 @@ class RebuildHandler(FileSystemEventHandler):
             self._schedule_rebuild()
 
 
-def serve(port: int = 8000, base_url: str = "/"):
+def serve(port: int = 8000, base_url: str = "/", version_override: str = None):
     """Serve the built site locally with file watching."""
     project_dir = Path.cwd()
     serve_dir = (project_dir / OUTPUT_DIR).resolve()
 
     # Set up file watcher
-    handler = RebuildHandler(base_url=base_url, project_dir=project_dir)
+    handler = RebuildHandler(base_url=base_url, project_dir=project_dir, version_override=version_override)
     observer = Observer()
 
     watch_paths = [TEMPLATES_DIR, DATA_DIR, STATIC_DIR]
@@ -718,12 +939,14 @@ def main():
     parser.add_argument('--serve', '-s', action='store_true', help='Serve site after building')
     parser.add_argument('--port', '-p', type=int, default=8000, help='Port for local server')
     parser.add_argument('--base-url', '-b', default='/', help='Base URL for the site')
+    parser.add_argument('--version', '-v', choices=['V1', 'V2', 'V3', 'V4'],
+                        help='Override version from config (V1=audio only, V2=translations, V3=+IPA, V4=+gloss)')
     args = parser.parse_args()
 
-    build_site(base_url=args.base_url)
+    build_site(base_url=args.base_url, version_override=args.version)
 
     if args.serve:
-        serve(port=args.port, base_url=args.base_url)
+        serve(port=args.port, base_url=args.base_url, version_override=args.version)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block title %}Glossary - {{ site_title }}{% endblock %}
+{% block description %}Glossing abbreviations and conventions{% endblock %}
+
+{% block content %}
+<article class="prose">
+    {{ glossary_content | safe }}
+</article>
+{% endblock %}

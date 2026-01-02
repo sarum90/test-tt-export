@@ -4,6 +4,8 @@
 {% block description %}{{ passage_meta.description or site_description }}{% endblock %}
 
 {% block content %}
+<div x-data="viewOptions()" x-cloak>
+
 <!-- Breadcrumb -->
 <nav class="breadcrumb">
     <a href="{{ base_url }}passages/">Passages</a>
@@ -14,6 +16,21 @@
 <!-- Intro Content -->
 {% if passage_meta.intro_html %}
 {{ passage_meta.intro_html | safe }}
+{% endif %}
+
+<!-- View Options -->
+{% if available_tracks %}
+<div class="view-options card card-padding mb-4">
+    <span class="view-options-label">{{ t('view.show_hide') }}</span>
+    <div class="view-options-controls">
+        {% for track_name in available_tracks %}
+        <label class="view-option">
+            <input type="checkbox" x-model="show.{{ track_name }}">
+            <span>{{ track_name }}</span>
+        </label>
+        {% endfor %}
+    </div>
+</div>
 {% endif %}
 
 <!-- Sentences -->
@@ -28,7 +45,8 @@
         <!-- Sentence number -->
         <div class="sentence-number"><a href="#sentence-{{ loop.index }}">({{ loop.index }})</a></div>
 
-        <!-- Interlinear gloss grid -->
+        <!-- Interlinear gloss grid (only if word tracks present) -->
+        {% if sentence.word_tracks and sentence.word_tracks[0].words %}
         {% set word_count = sentence.word_tracks[0].words | length %}
         <div class="interlinear-grid">
             {% for word_idx in range(word_count) %}
@@ -36,18 +54,19 @@
                 {% for track in sentence.word_tracks %}
                 {% set word = track.words[word_idx] or '' %}
                 {% if track.name in ['IPA', 'Phonetic'] %}
-                <span class="ipa-text">{{ word | superscripts | safe }}</span>
+                <span class="ipa-text" x-show="show.{{ track.name }}">{{ word | superscripts | safe }}</span>
                 {% else %}
-                <span class="gloss-text">{{ word | superscripts | safe }}</span>
+                <span class="gloss-text" x-show="show.{{ track.name }}">{{ word | superscripts | safe }}</span>
                 {% endif %}
                 {% endfor %}
             </div>
             {% endfor %}
         </div>
+        {% endif %}
 
         <!-- Sentence-level translations -->
         {% for track in sentence.sentence_tracks or [] %}
-        <div class="translation">
+        <div class="translation" x-show="show.{{ track.name }}">
             {{ track.sentence }}
         </div>
         {% endfor %}
@@ -57,6 +76,31 @@
 
 <!-- Navigation -->
 <div class="back-link">
-    <a href="{{ base_url }}passages/">&larr; Back to Passages</a>
+    <a href="{{ base_url }}passages/">&larr; {{ t('passage.back') }}</a>
 </div>
+
+</div><!-- end x-data -->
+{% endblock %}
+
+{% block scripts %}
+<script>
+function viewOptions() {
+    const key = 'viewOptions';
+    const stored = localStorage.getItem(key);
+    const availableTracks = {{ available_tracks | tojson }};
+    // Default all available tracks to visible
+    const defaults = {};
+    availableTracks.forEach(t => defaults[t] = true);
+    const initial = stored ? { ...defaults, ...JSON.parse(stored) } : defaults;
+
+    return {
+        show: initial,
+        init() {
+            this.$watch('show', (val) => {
+                localStorage.setItem(key, JSON.stringify(val));
+            });
+        }
+    };
+}
+</script>
 {% endblock %}

@@ -1,0 +1,45 @@
+{
+  "version": "V4",
+  "site_title": "Language Passages",
+  "site_description": "Interactive linguistic text corpus with interlinear glosses",
+  "languages": ["en", "fr"],
+  "default_language": "en",
+  "track_display_order": [
+    "IPA",
+    "Gloss",
+    "English",
+    "French"
+  ],
+  "version_definitions": {
+    "V1": {
+      "word_tracks": [],
+      "sentence_tracks": []
+    },
+    "V2": {
+      "word_tracks": [],
+      "sentence_tracks": [
+        "English",
+        "French"
+      ]
+    },
+    "V3": {
+      "word_tracks": [
+        "IPA"
+      ],
+      "sentence_tracks": [
+        "English",
+        "French"
+      ]
+    },
+    "V4": {
+      "word_tracks": [
+        "IPA",
+        "Gloss"
+      ],
+      "sentence_tracks": [
+        "English",
+        "French"
+      ]
+    }
+  }
+}
